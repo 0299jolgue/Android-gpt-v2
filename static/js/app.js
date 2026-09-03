@@ -2,8 +2,13 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-time]').forEach((el) => { const v=Number(el.dataset.time); if(!Number.isNaN(v)&&v>0) el.textContent=new Date(v*1000).toLocaleString('pt-PT'); });
   const form=document.querySelector('[data-apk-generator]'); const result=document.querySelector('[data-apk-result]');
   if(form&&result){
-    const count=()=>{const n=form.querySelectorAll('input[type="checkbox"]:checked').length; const el=form.querySelector('[data-feature-count]'); if(el)el.textContent=n;};
-    form.querySelectorAll('input[type="checkbox"]').forEach(x=>x.addEventListener('change',count)); count();
+    const checkboxes=()=>Array.from(form.querySelectorAll('input[type="checkbox"]'));
+    const count=()=>{const n=checkboxes().filter(x=>x.checked).length; const el=form.querySelector('[data-feature-count]'); if(el)el.textContent=n;};
+    checkboxes().forEach(x=>x.addEventListener('change',count));
+    const selectAll=form.querySelector('[data-select-all]'); const clearAll=form.querySelector('[data-clear-all]');
+    if(selectAll)selectAll.addEventListener('click',()=>{checkboxes().forEach(x=>x.checked=true);count()});
+    if(clearAll)clearAll.addEventListener('click',()=>{checkboxes().forEach(x=>x.checked=false);count()});
+    count();
     let activeJob=null;
     const notify=async(t,b)=>{try{if(!('Notification'in window))return;if(Notification.permission==='default')await Notification.requestPermission();if(Notification.permission==='granted')new Notification(t,{body:b,tag:'android-gpt-build'});}catch(_){}};
     const save=j=>localStorage.setItem('android-gpt-apk-job',JSON.stringify(j));
