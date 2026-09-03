@@ -10,7 +10,7 @@ from ..config import settings
 from ..database import get_device, list_devices, set_device_status, upsert_device
 from ..security import is_authenticated
 from ..services import apk_builder_v3 as apk_builder
-from ..services.apk_builder_v3 import build_apk
+from ..services.apk_builder_v3 import _BUILD_GENERATOR_VERSION, build_apk
 from ..services.generator import FEATURES, create_project
 
 # The generated manifest uses @style/AppTheme. Keep the generated Android
@@ -45,9 +45,10 @@ def _cached_apk(app_name,server_url,features):
     if not apk.is_file() or not metadata.is_file(): return None
     try:saved=json.loads(metadata.read_text(encoding='utf-8'))
     except (OSError,json.JSONDecodeError):return None
-    return apk if saved=={'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features} else None
+    expected={'generator_version':_BUILD_GENERATOR_VERSION,'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features}
+    return apk if saved==expected else None
 def _save_cache_metadata(app_name,server_url,features):
-    _,metadata=_cache_paths(app_name); metadata.parent.mkdir(parents=True,exist_ok=True); metadata.write_text(json.dumps({'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features},indent=2),encoding='utf-8')
+    _,metadata=_cache_paths(app_name); metadata.parent.mkdir(parents=True,exist_ok=True); metadata.write_text(json.dumps({'generator_version':_BUILD_GENERATOR_VERSION,'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features},indent=2),encoding='utf-8')
 def _run_build(job_id,app_name,server_url,features):
     _jobs[job_id].update(status='building',message='A preparar o ambiente Android e a compilar o APK…')
     try:
