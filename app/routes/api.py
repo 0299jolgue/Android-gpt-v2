@@ -36,8 +36,23 @@ def _write_android_project_with_theme(project, app_name, server_url, features):
 apk_builder.write_android_project = _write_android_project_with_theme
 
 router=APIRouter(); _executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='apk-builder'); _jobs={}
-def _public_server_url(request):
-    proto=request.headers.get('x-forwarded-proto','').split(',')[0].strip() or request.url.scheme; host=request.headers.get('x-forwarded-host','').split(',')[0].strip() or request.headers.get('host','').strip() or request.url.netloc; return f'{proto}://{host}'.rstrip('/')
+
+def _public_server_url(request: Request):
+    """Prefer the browser-visible origin so generated APKs never target 0.0.0.0/internal hosts."""
+    origin = request.headers.get('origin', '').strip().rstrip('/')
+    if origin and re.match(r'^https?://[^/]+$', origin):
+        return origin
+
+    forwarded_host = request.headers.get('x-forwarded-host', '').split(',')[0].strip()
+    forwarded_proto = request.headers.get('x-forwarded-proto', '').split(',')[0].strip()
+    host = forwarded_host or request.headers.get('host', '').strip() or request.url.netloc
+    proto = forwarded_proto or request.url.scheme
+
+    # Never embed container-only bind addresses in an Android build.
+    if host in {'0.0.0.0', '127.0.0.1', 'localhost', '::1'}:
+        return ''
+    return f'{proto}://{host}'.rstrip('/')
+
 def _safe_slug(v): return (re.sub(r'[^A-Za-z0-9._-]+','_',v.strip()).strip('._-') or 'android_gpt_agent')[:48]
 def _cache_paths(app_name):
     base=_safe_slug(app_name); root=settings.generated/'apks'; return root/f'{base}.apk',root/f'{base}.json'
@@ -57,18 +72,30 @@ def _cached_apk(app_name,server_url,features):
     apk,metadata=_cache_paths(app_name)
     if not apk.is_file() or not metadata.is_file(): return None
     saved=_metadata_for(apk,metadata)
-    return apk if saved=={'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features,'public_token':saved.get('public_token')} else None
+    if not saved:
+        return None
+    return apk if (
+        saved.get('app_name') == app_name and
+        saved.get('server_url') == server_url.rstrip('/') and
+        saved.get('features') == features and
+        bool(saved.get('public_token'))
+    ) else None
+
 def _save_cache_metadata(app_name,server_url,features):
     _,metadata=_cache_paths(app_name); metadata.parent.mkdir(parents=True,exist_ok=True)
     metadata.write_text(json.dumps({'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features,'public_token':secrets.token_urlsafe(24)},indent=2),encoding='utf-8')
+
 def _run_build(job_id,app_name,server_url,features):
     _jobs[job_id].update(status='building',message='A preparar o ambiente Android e a compilar o APK…')
     try:
+        if not server_url:
+            raise RuntimeError('Não foi possível determinar o URL público do servidor. Abra o painel através do endereço público do ShardCloud e gere o APK novamente.')
         apk=_cached_apk(app_name,server_url,features); project=None
         if apk is None: apk,project=build_apk(app_name,server_url,features); _save_cache_metadata(app_name,server_url,features)
         public_url=f'/api/public/apk/{_metadata_for(apk,settings.generated/"apks"/(apk.stem+".json")).get("public_token")}' if apk else None
         _jobs[job_id].update(status='ready',message='APK pronta.',download=f'/api/generator/download/{apk.name}',public_url=public_url,project=str(project.relative_to(settings.generated)) if project else None)
     except Exception as exc:_jobs[job_id].update(status='error',message=str(exc))
+
 @router.get('/health')
 def health():return {'ok':True,'service':'android-gpt'}
 @router.get('/stats')
@@ -78,7 +105,7 @@ def stats():
 async def generator(request:Request):
     if not is_authenticated(request):return JSONResponse({'ok':False,'error':'login_required'},status_code=401)
     data=await request.form(); app_name=str(data.get('app_name','Android GPT Agent')).strip() or 'Android GPT Agent'; server_url=_public_server_url(request); features={name:bool(data.get(name)) for name in FEATURES}; create_project(app_name,server_url,features); job_id=uuid.uuid4().hex; cached=_cached_apk(app_name,server_url,features)
-    if cached is not None:_jobs[job_id]={'status':'ready','message':'APK já existente para esta configuração.','app_name':app_name,'download':f'/api/generator/download/{cached.name}'}; return {'ok':True,'job_id':job_id,'status_url':f'/api/generator/status/{job_id}'}
+    if cached is not None:_jobs[job_id]={'status':'ready','message':'APK já existente para esta configuração.','app_name':app_name,'download':f'/api/generator/download/{cached.name}','public_url':f'/api/public/apk/{_metadata_for(cached,settings.generated/"apks"/(cached.stem+".json"))["public_token"]}'}; return {'ok':True,'job_id':job_id,'status_url':f'/api/generator/status/{job_id}'}
     _jobs[job_id]={'status':'queued','message':'APK colocada na fila de compilação.','app_name':app_name}; _executor.submit(_run_build,job_id,app_name,server_url,features); return {'ok':True,'job_id':job_id,'status_url':f'/api/generator/status/{job_id}'}
 @router.get('/generator/status/{job_id}')
 def generator_status(request:Request,job_id:str):
