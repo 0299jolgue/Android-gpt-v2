@@ -21,6 +21,22 @@ JDK_ROOT = TOOLCHAIN_ROOT / "jdk-17"
 _lock = threading.Lock()
 
 
+def _make_executable(path: Path, recursive: bool = False):
+    """Restore executable bits when a ZIP/archive was unpacked on ShardCloud."""
+    if recursive and path.is_dir():
+        for item in path.rglob("*"):
+            if item.is_file():
+                try:
+                    item.chmod(item.stat().st_mode | 0o111)
+                except OSError:
+                    pass
+    elif path.exists() and path.is_file():
+        try:
+            path.chmod(path.stat().st_mode | 0o111)
+        except OSError:
+            pass
+
+
 def _download(url, destination):
     destination.parent.mkdir(parents=True, exist_ok=True)
     tmp = destination.with_suffix(destination.suffix + ".part")
@@ -68,6 +84,7 @@ def _java_home():
                     if member.name:
                         tar.extract(member, JDK_ROOT)
         archive.unlink(missing_ok=True)
+    _make_executable(JDK_ROOT / "bin" / "java", recursive=False)
     return JDK_ROOT
 
 
@@ -80,7 +97,7 @@ def _gradle_bin():
         with zipfile.ZipFile(archive) as z:
             z.extractall(TOOLCHAIN_ROOT)
         archive.unlink(missing_ok=True)
-    path.chmod(path.stat().st_mode | 0o111)
+    _make_executable(path, recursive=False)
     return path
 
 
@@ -100,6 +117,11 @@ def _ensure_sdk():
         shutil.move(str(temp / "cmdline-tools"), str(target))
         shutil.rmtree(temp, ignore_errors=True)
         archive.unlink(missing_ok=True)
+
+    # ShardCloud can unpack repository/toolchain files without their ZIP
+    # executable bits. Restore them before invoking sdkmanager.
+    _make_executable(SDK_ROOT / "cmdline-tools" / "latest", recursive=True)
+    _make_executable(sdkmanager, recursive=False)
 
     env = os.environ.copy()
     env.update({"ANDROID_HOME": str(SDK_ROOT), "ANDROID_SDK_ROOT": str(SDK_ROOT), "JAVA_HOME": str(_java_home())})
