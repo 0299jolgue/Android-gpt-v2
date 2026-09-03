@@ -9,7 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from ..config import settings
 from ..database import get_device, list_devices, set_device_status, upsert_device
 from ..security import is_authenticated
-from ..services.apk_builder_v2 import build_apk
+from ..services.apk_builder_v3 import build_apk
 from ..services.generator import FEATURES, create_project
 router=APIRouter(); _executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='apk-builder'); _jobs={}
 def _public_server_url(request):
