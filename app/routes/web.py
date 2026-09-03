@@ -59,3 +59,8 @@ def device_page(request: Request, device_id: str):
 def generator_page(request: Request):
     if (r := guard(request)): return r
     return render(request, "generator.html", {"active": "generator", "result": None})
+
+@router.get("/apks", response_class=HTMLResponse)
+def apks_page(request: Request):
+    if (r := guard(request)): return r
+    return render(request, "apks.html", {"active": "apks"})
