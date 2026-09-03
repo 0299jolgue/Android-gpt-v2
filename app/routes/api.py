@@ -2,6 +2,7 @@ import json
 import re
 import time
 import uuid
+import secrets
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from fastapi import APIRouter, Request
@@ -10,7 +11,7 @@ from ..config import settings
 from ..database import get_device, list_devices, set_device_status, upsert_device
 from ..security import is_authenticated
 from ..services import apk_builder_v3 as apk_builder
-from ..services.apk_builder_v3 import _BUILD_GENERATOR_VERSION, build_apk
+from ..services.apk_builder_v3 import build_apk
 from ..services.generator import FEATURES, create_project
 
 # The generated manifest uses @style/AppTheme. Keep the generated Android
@@ -40,21 +41,33 @@ def _public_server_url(request):
 def _safe_slug(v): return (re.sub(r'[^A-Za-z0-9._-]+','_',v.strip()).strip('._-') or 'android_gpt_agent')[:48]
 def _cache_paths(app_name):
     base=_safe_slug(app_name); root=settings.generated/'apks'; return root/f'{base}.apk',root/f'{base}.json'
+def _metadata_for(apk, metadata):
+    try:saved=json.loads(metadata.read_text(encoding='utf-8'))
+    except (OSError,json.JSONDecodeError):return None
+    if not isinstance(saved, dict): return None
+    token=saved.get('public_token')
+    if not token:
+        token=secrets.token_urlsafe(24)
+        saved['public_token']=token
+        try: metadata.write_text(json.dumps(saved,indent=2),encoding='utf-8')
+        except OSError: pass
+    return saved
+
 def _cached_apk(app_name,server_url,features):
     apk,metadata=_cache_paths(app_name)
     if not apk.is_file() or not metadata.is_file(): return None
-    try:saved=json.loads(metadata.read_text(encoding='utf-8'))
-    except (OSError,json.JSONDecodeError):return None
-    expected={'generator_version':_BUILD_GENERATOR_VERSION,'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features}
-    return apk if saved==expected else None
+    saved=_metadata_for(apk,metadata)
+    return apk if saved=={'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features,'public_token':saved.get('public_token')} else None
 def _save_cache_metadata(app_name,server_url,features):
-    _,metadata=_cache_paths(app_name); metadata.parent.mkdir(parents=True,exist_ok=True); metadata.write_text(json.dumps({'generator_version':_BUILD_GENERATOR_VERSION,'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features},indent=2),encoding='utf-8')
+    _,metadata=_cache_paths(app_name); metadata.parent.mkdir(parents=True,exist_ok=True)
+    metadata.write_text(json.dumps({'app_name':app_name,'server_url':server_url.rstrip('/'),'features':features,'public_token':secrets.token_urlsafe(24)},indent=2),encoding='utf-8')
 def _run_build(job_id,app_name,server_url,features):
     _jobs[job_id].update(status='building',message='A preparar o ambiente Android e a compilar o APK…')
     try:
         apk=_cached_apk(app_name,server_url,features); project=None
         if apk is None: apk,project=build_apk(app_name,server_url,features); _save_cache_metadata(app_name,server_url,features)
-        _jobs[job_id].update(status='ready',message='APK pronta.',download=f'/api/generator/download/{apk.name}',project=str(project.relative_to(settings.generated)) if project else None)
+        public_url=f'/api/public/apk/{_metadata_for(apk,settings.generated/"apks"/(apk.stem+".json")).get("public_token")}' if apk else None
+        _jobs[job_id].update(status='ready',message='APK pronta.',download=f'/api/generator/download/{apk.name}',public_url=public_url,project=str(project.relative_to(settings.generated)) if project else None)
     except Exception as exc:_jobs[job_id].update(status='error',message=str(exc))
 @router.get('/health')
 def health():return {'ok':True,'service':'android-gpt'}
@@ -72,6 +85,11 @@ def generator_status(request:Request,job_id:str):
     if not is_authenticated(request):return JSONResponse({'ok':False,'error':'login_required'},status_code=401)
     job=_jobs.get(job_id)
     if not job:return JSONResponse({'ok':False,'error':'job_not_found'},status_code=404)
+    if job.get('status')=='ready' and not job.get('public_url'):
+        apk_name=Path(job.get('download','')).name
+        metadata=settings.generated/'apks'/(Path(apk_name).stem+'.json')
+        saved=_metadata_for(settings.generated/'apks'/apk_name,metadata) if (settings.generated/'apks'/apk_name).is_file() else None
+        if saved: job['public_url']=f'/api/public/apk/{saved["public_token"]}'
     return {'ok':True,'job_id':job_id,**job}
 @router.get('/generator/download/{filename}')
 def generator_download(request:Request,filename:str):
@@ -79,6 +97,25 @@ def generator_download(request:Request,filename:str):
     safe=Path(filename).name; path=settings.generated/'apks'/safe
     if path.parent!=settings.generated/'apks' or not path.is_file() or path.suffix.lower()!='.apk':return JSONResponse({'ok':False,'error':'apk_not_found'},status_code=404)
     return FileResponse(path,media_type='application/vnd.android.package-archive',filename=safe)
+@router.get('/public/apk/{token}')
+def public_apk(token:str):
+    root=settings.generated/'apks'
+    for metadata in root.glob('*.json'):
+        saved=_metadata_for(root/(metadata.stem+'.apk'),metadata)
+        if saved and secrets.compare_digest(str(saved.get('public_token','')),token):
+            apk=root/(metadata.stem+'.apk')
+            if apk.is_file():
+                return FileResponse(apk,media_type='application/vnd.android.package-archive',filename=apk.name,headers={'Content-Disposition':f'attachment; filename="{apk.name}"'})
+    return JSONResponse({'ok':False,'error':'apk_not_found'},status_code=404)
+@router.get('/apks')
+def list_apks(request:Request):
+    if not is_authenticated(request):return JSONResponse({'ok':False,'error':'login_required'},status_code=401)
+    root=settings.generated/'apks'; items=[]
+    for apk in sorted(root.glob('*.apk'),key=lambda p:p.stat().st_mtime,reverse=True):
+        metadata=root/(apk.stem+'.json'); saved=_metadata_for(apk,metadata) if metadata.is_file() else {}
+        public_token=(saved or {}).get('public_token')
+        items.append({'name':apk.name,'size':apk.stat().st_size,'created_at':apk.stat().st_mtime,'public_url':f'/api/public/apk/{public_token}' if public_token else None,'download_url':f'/api/generator/download/{apk.name}'})
+    return {'ok':True,'apks':items}
 @router.post('/devices/register')
 async def register(request:Request):
     data=await request.json(); device_id=str(data.get('id','')).strip()
