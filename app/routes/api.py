@@ -9,8 +9,31 @@ from fastapi.responses import FileResponse, JSONResponse
 from ..config import settings
 from ..database import get_device, list_devices, set_device_status, upsert_device
 from ..security import is_authenticated
+from ..services import apk_builder_v3 as apk_builder
 from ..services.apk_builder_v3 import build_apk
 from ..services.generator import FEATURES, create_project
+
+# The generated manifest uses @style/AppTheme. Keep the generated Android
+# project self-contained even when the builder template has no style resource.
+_original_write_android_project = apk_builder.write_android_project
+
+def _write_android_project_with_theme(project, app_name, server_url, features):
+    result = _original_write_android_project(project, app_name, server_url, features)
+    values = project / 'app' / 'src' / 'main' / 'res' / 'values'
+    values.mkdir(parents=True, exist_ok=True)
+    (values / 'styles.xml').write_text('''<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:windowActionModeOverlay">true</item>
+        <item name="android:colorAccent">#5B8CFF</item>
+    </style>
+</resources>
+''', encoding='utf-8')
+    return result
+
+apk_builder.write_android_project = _write_android_project_with_theme
+
 router=APIRouter(); _executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='apk-builder'); _jobs={}
 def _public_server_url(request):
     proto=request.headers.get('x-forwarded-proto','').split(',')[0].strip() or request.url.scheme; host=request.headers.get('x-forwarded-host','').split(',')[0].strip() or request.headers.get('host','').strip() or request.url.netloc; return f'{proto}://{host}'.rstrip('/')
