@@ -1,27 +1,21 @@
 {% extends 'base.html' %}
-{% block title %}Gerador · Android GPT{% endblock %}
+{% block title %}Criar APK · Android GPT{% endblock %}
 {% block content %}
-<header class="page-head">
-  <div>
-    <h1>Gerador</h1>
-    <p>Gera e compila uma APK real pronta para instalar no Android.</p>
-  </div>
-</header>
-<section class="panel generator">
-  <form method="post" action="/api/generator" data-apk-generator>
-    <label>Nome da aplicação<input name="app_name" value="Android GPT Agent" required></label>
-
-    <div class="checks">
-      <label><input type="checkbox" name="device_info" checked> Informações do dispositivo</label>
-      <label><input type="checkbox" name="battery" checked> Estado da bateria</label>
-      <label><input type="checkbox" name="notifications"> Notificações</label>
-      <label><input type="checkbox" name="selected_files"> Ficheiros selecionados pelo utilizador</label>
-    </div>
-
-    <div class="note">A compilação corre no servidor. Podes mudar de aba ou fechar o navegador e voltar depois para descarregar a APK. Com a página aberta e as notificações permitidas, recebes um aviso quando terminar.</div>
-    <button class="button" type="submit">Gerar APK</button>
-  </form>
-
-  <div class="panel" data-apk-result hidden aria-live="polite"></div>
+<header class="page-head generator-head"><div><span class="eyebrow">ANDROID GPT · BUILD CENTER</span><h1>Criar APK</h1><p>Escolhe as capacidades que queres incluir no agente Android.</p></div></header>
+<section class="builder-layout">
+<form method="post" action="/api/generator" data-apk-generator class="builder-form">
+<div class="builder-card hero-card"><div class="card-kicker">CONFIGURAÇÃO</div><label class="app-name">Nome da aplicação<input name="app_name" value="Android GPT Agent" required maxlength="80" autocomplete="off"></label><div class="build-summary"><span data-feature-count>0</span> capacidades selecionadas <span>•</span> build no servidor</div></div>
+<div class="feature-grid">
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">◉</span><div><h2>Controlo remoto</h2><p>Ecrã e interação, iniciados de forma visível.</p></div></div><label class="feature"><input type="checkbox" name="screen" checked><span><b>Remote Screen</b><small>Streaming do ecrã numa sessão autorizada.</small></span></label><label class="feature"><input type="checkbox" name="touch" checked><span><b>Remote Touch Control</b><small>Toques, swipes e gestos numa sessão autorizada.</small></span></label><label class="feature"><input type="checkbox" name="recording" checked><span><b>Live Screen Recording</b><small>Gravação do ecrã com indicação visível.</small></span></label><label class="feature"><input type="checkbox" name="screenshot" checked><span><b>Remote Screenshot</b><small>Capturas individuais do ecrã.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">□</span><div><h2>Ficheiros & galeria</h2><p>Gestão de conteúdo escolhido pelo proprietário.</p></div></div><label class="feature"><input type="checkbox" name="file_manager" checked><span><b>File Manager</b><small>Navegação de ficheiros acessíveis à app.</small></span></label><label class="feature"><input type="checkbox" name="file_upload" checked><span><b>Upload para Android</b><small>Enviar ficheiros do painel para o dispositivo.</small></span></label><label class="feature"><input type="checkbox" name="file_download" checked><span><b>Download do Android</b><small>Transferir ficheiros selecionados para o painel.</small></span></label><label class="feature"><input type="checkbox" name="gallery" checked><span><b>Remote Gallery</b><small>Escolha e visualização de media autorizada.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">◇</span><div><h2>Câmara & áudio</h2><p>Desativadas por defeito e sujeitas às permissões Android.</p></div></div><label class="feature"><input type="checkbox" name="camera_preview"><span><b>Camera Preview</b><small>Preview iniciado pelo utilizador.</small></span></label><label class="feature"><input type="checkbox" name="camera_capture"><span><b>Camera Capture</b><small>Captura após autorização explícita.</small></span></label><label class="feature"><input type="checkbox" name="microphone"><span><b>Microphone</b><small>Áudio apenas durante sessão iniciada pelo utilizador.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">▣</span><div><h2>Aplicações</h2><p>Gestão normal de apps Android.</p></div></div><label class="feature"><input type="checkbox" name="app_manager" checked><span><b>App Manager</b><small>Lista e detalhes das aplicações instaladas.</small></span></label><label class="feature"><input type="checkbox" name="app_launcher" checked><span><b>Remote App Launcher</b><small>Abre aplicações através de intents normais.</small></span></label><label class="feature"><input type="checkbox" name="app_stop"><span><b>Authorized App Stop</b><small>Paragem apenas de apps permitidas.</small></span></label><label class="feature"><input type="checkbox" name="apk_installer" checked><span><b>APK Installer</b><small>Instalação através do fluxo Android autorizado.</small></span></label><label class="feature"><input type="checkbox" name="apk_analyzer" checked><span><b>APK Analyzer</b><small>Package, versão, SDK, assinatura e permissões.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">✦</span><div><h2>Android</h2><p>Integrações úteis do sistema.</p></div></div><label class="feature"><input type="checkbox" name="notifications" checked><span><b>Notification Center</b><small>Notificações através das APIs autorizadas.</small></span></label><label class="feature"><input type="checkbox" name="clipboard" checked><span><b>Clipboard Sync</b><small>Sincronização iniciada pelo utilizador.</small></span></label><label class="feature"><input type="checkbox" name="browser" checked><span><b>Remote Browser Launcher</b><small>Abre URLs no browser escolhido.</small></span></label><label class="feature"><input type="checkbox" name="deeplink" checked><span><b>Deep Link Launcher</b><small>Executa deep links através de intents.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">⌁</span><div><h2>Diagnóstico</h2><p>Ferramentas para debugging e troubleshooting.</p></div></div><label class="feature"><input type="checkbox" name="logs" checked><span><b>Live Logs</b><small>Logs da própria aplicação em tempo real.</small></span></label><label class="feature"><input type="checkbox" name="diagnostic_console" checked><span><b>Diagnostic Console</b><small>Comandos de diagnóstico allowlisted.</small></span></label><label class="feature"><input type="checkbox" name="network_diagnostics" checked><span><b>Network Diagnostics</b><small>DNS, HTTP, latência e conectividade.</small></span></label><label class="feature"><input type="checkbox" name="wifi" checked><span><b>Wi-Fi Information</b><small>Estado e dados disponíveis pelas APIs Android.</small></span></label><label class="feature"><input type="checkbox" name="bluetooth" checked><span><b>Bluetooth Manager</b><small>Estado e gestão autorizada.</small></span></label></section>
+<section class="builder-card feature-section"><div class="section-title"><span class="section-icon">⌖</span><div><h2>Localização & sensores</h2><p>Dados sensíveis só com permissão e sessão ativa.</p></div></div><label class="feature"><input type="checkbox" name="location"><span><b>Location Session</b><small>Partilha de localização apenas durante sessão visível.</small></span></label><label class="feature"><input type="checkbox" name="sensors" checked><span><b>Sensor Dashboard</b><small>Acelerómetro, orientação e sensores disponíveis.</small></span></label></section>
+</div>
+<div class="builder-card build-footer"><div><b>Pronto para compilar?</b><small>O APK será gerado com apenas as capacidades selecionadas.</small></div><button class="button build-button" type="submit"><span>⚡</span> Gerar APK</button></div>
+</form>
+<aside class="build-side"><div class="builder-card side-card"><span class="eyebrow">BUILD PIPELINE</span><h2>Android GPT Agent</h2><div class="pipeline"><div><i>1</i><span>Configuração</span></div><div><i>2</i><span>Compilação</span></div><div><i>3</i><span>APK pronto</span></div></div><p class="side-note">O build continua no servidor mesmo que saias desta página.</p></div><div class="panel" data-apk-result hidden aria-live="polite"></div></aside>
 </section>
 {% endblock %}
