@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}APKs gerados · Android GPT{% endblock %}
+{% block content %}
+<header class="page-head"><div><span class="eyebrow">ANDROID GPT · DOWNLOAD CENTER</span><h1>APKs gerados</h1><p>Links públicos para testar rapidamente os APKs no telemóvel da cloud.</p></div><a class="button" href="/generator">+ Criar APK</a></header>
+<section class="panel apk-panel" data-apk-library>
+  <div class="panel-head"><div><h2>Biblioteca</h2><p class="muted">O link público não exige login e inicia o download diretamente.</p></div><button class="button ghost" type="button" data-refresh-apks>Atualizar</button></div>
+  <div class="apk-list" data-apk-list><div class="empty">A carregar APKs…</div></div>
+</section>
+{% endblock %}
