@@ -1,116 +1,16 @@
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('[data-time]').forEach((el) => {
-    const value = Number(el.dataset.time);
-    if (!Number.isNaN(value) && value > 0) el.textContent = new Date(value * 1000).toLocaleString('pt-PT');
-  });
-
-  const form = document.querySelector('[data-apk-generator]');
-  const result = document.querySelector('[data-apk-result]');
-  if (!form || !result) return;
-
-  let activeJob = null;
-
-  const notify = async (title, body) => {
-    try {
-      if (!('Notification' in window)) return;
-      if (Notification.permission === 'default') {
-        await Notification.requestPermission();
-      }
-      if (Notification.permission === 'granted') {
-        new Notification(title, { body, tag: 'android-gpt-build' });
-      }
-    } catch (_) { /* Alguns browsers bloqueiam notificações sem gesto do utilizador. */ }
-  };
-
-  const saveJob = (job) => localStorage.setItem('android-gpt-apk-job', JSON.stringify(job));
-  const loadJob = () => {
-    try { return JSON.parse(localStorage.getItem('android-gpt-apk-job') || 'null'); }
-    catch (_) { return null; }
-  };
-
-  const clearJob = () => localStorage.removeItem('android-gpt-apk-job');
-
-  const showStatus = (status, button) => {
-    if (status.status === 'ready') {
-      result.hidden = false;
-      result.innerHTML = `<strong>APK pronto ✅</strong><p>${escapeHtml(status.message || 'A compilação terminou.')}</p><a class="button" href="${status.download}">Baixar APK</a>`;
-      if (button) button.disabled = false;
-      if (activeJob && activeJob.notified !== true) {
-        notify('Android GPT', 'A tua APK terminou de compilar e está pronta para baixar.');
-        activeJob.notified = true;
-        saveJob(activeJob);
-      }
-      return true;
-    }
-    if (status.status === 'error') {
-      result.hidden = false;
-      result.innerHTML = `<strong>Erro na compilação</strong><p>${escapeHtml(status.message || 'Erro desconhecido.')}</p>`;
-      if (button) button.disabled = false;
-      if (activeJob && activeJob.notified !== true) {
-        notify('Android GPT', 'A compilação da APK terminou com erro.');
-        activeJob.notified = true;
-        saveJob(activeJob);
-      }
-      return true;
-    }
-    result.hidden = false;
-    result.innerHTML = `<strong>${status.status === 'queued' ? 'Na fila…' : 'A compilar…'}</strong><p>${escapeHtml(status.message || 'A preparar…')}</p>`;
-    return false;
-  };
-
-  const pollJob = async (job, button) => {
-    activeJob = job;
-    try {
-      const statusResponse = await fetch(job.status_url, { cache: 'no-store' });
-      const status = await statusResponse.json();
-      if (!statusResponse.ok || !status.ok) throw new Error(status.error || 'A compilação já não está disponível.');
-      saveJob({ ...job, lastStatus: status.status });
-      if (!showStatus(status, button)) window.setTimeout(() => pollJob(job, button), 2000);
-    } catch (error) {
-      result.hidden = false;
-      result.innerHTML = `<strong>Acompanhamento interrompido</strong><p>${escapeHtml(error.message || String(error))}</p><p>Podes voltar a abrir esta página; a compilação continua no servidor.</p>`;
-      if (button) button.disabled = false;
-    }
-  };
-
-  form.addEventListener('submit', async (event) => {
-    event.preventDefault();
-    result.hidden = false;
-    result.innerHTML = '<strong>A iniciar…</strong><p>A compilação corre no servidor e continua mesmo que feches esta página.</p>';
-    const button = form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-
-    try {
-      const response = await fetch(form.action, { method: 'POST', body: new FormData(form) });
-      const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.error || 'Não foi possível iniciar a compilação.');
-      activeJob = { job_id: data.job_id, status_url: data.status_url, notified: false };
-      saveJob(activeJob);
-      if ('Notification' in window && Notification.permission === 'default') {
-        try { await Notification.requestPermission(); } catch (_) { /* ignore */ }
-      }
-      await pollJob(activeJob, button);
-    } catch (error) {
-      result.innerHTML = `<strong>Erro</strong><p>${escapeHtml(error.message || String(error))}</p>`;
-      if (button) button.disabled = false;
-    }
-  });
-
-  const previousJob = loadJob();
-  if (previousJob && previousJob.status_url) {
-    result.hidden = false;
-    result.innerHTML = '<strong>A recuperar compilação…</strong><p>A verificar uma compilação iniciada anteriormente.</p>';
-    const button = form.querySelector('button[type="submit"]');
-    if (button) button.disabled = true;
-    pollJob(previousJob, button);
-  }
+  document.querySelectorAll('[data-time]').forEach((el) => { const v=Number(el.dataset.time); if(!Number.isNaN(v)&&v>0) el.textContent=new Date(v*1000).toLocaleString('pt-PT'); });
+  const form=document.querySelector('[data-apk-generator]'); const result=document.querySelector('[data-apk-result]');
+  if(!form||!result)return;
+  const count=()=>{const n=form.querySelectorAll('input[type="checkbox"]:checked').length; const el=form.querySelector('[data-feature-count]'); if(el)el.textContent=n;};
+  form.querySelectorAll('input[type="checkbox"]').forEach(x=>x.addEventListener('change',count)); count();
+  let activeJob=null;
+  const notify=async(t,b)=>{try{if(!('Notification'in window))return;if(Notification.permission==='default')await Notification.requestPermission();if(Notification.permission==='granted')new Notification(t,{body:b,tag:'android-gpt-build'});}catch(_){}};
+  const save=j=>localStorage.setItem('android-gpt-apk-job',JSON.stringify(j));
+  const load=()=>{try{return JSON.parse(localStorage.getItem('android-gpt-apk-job')||'null')}catch(_){return null}};
+  const show=(s,button)=>{result.hidden=false;if(s.status==='ready'){result.innerHTML=`<strong>APK pronta ✓</strong><p>${escapeHtml(s.message||'A compilação terminou.')}</p><a class="button" href="${s.download}">Baixar APK</a>`;if(button)button.disabled=false;if(activeJob&&!activeJob.notified){notify('Android GPT','A APK terminou de compilar.');activeJob.notified=true;save(activeJob)}return true}if(s.status==='error'){result.innerHTML=`<strong>Erro na compilação</strong><p>${escapeHtml(s.message||'Erro desconhecido.')}</p>`;if(button)button.disabled=false;return true}result.innerHTML=`<strong>${s.status==='queued'?'Na fila…':'A compilar…'}</strong><p>${escapeHtml(s.message||'A preparar…')}</p>`;return false};
+  const poll=async(j,button)=>{activeJob=j;try{const r=await fetch(j.status_url,{cache:'no-store'});const s=await r.json();if(!r.ok||!s.ok)throw new Error(s.error||'Job indisponível.');save({...j,lastStatus:s.status});if(!show(s,button))setTimeout(()=>poll(j,button),2000)}catch(e){result.hidden=false;result.innerHTML=`<strong>Acompanhamento interrompido</strong><p>${escapeHtml(e.message||String(e))}</p>`;if(button)button.disabled=false}};
+  form.addEventListener('submit',async e=>{e.preventDefault();result.hidden=false;result.innerHTML='<strong>A iniciar…</strong><p>A preparar o APK com as capacidades selecionadas.</p>';const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;try{const r=await fetch(form.action,{method:'POST',body:new FormData(form)});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'Não foi possível iniciar.');activeJob={job_id:d.job_id,status_url:d.status_url,notified:false};save(activeJob);poll(activeJob,button)}catch(e){result.innerHTML=`<strong>Erro</strong><p>${escapeHtml(e.message||String(e))}</p>`;if(button)button.disabled=false}});
+  const old=load(); if(old&&old.status_url){result.hidden=false;result.innerHTML='<strong>A recuperar compilação…</strong><p>A verificar o build anterior.</p>';poll(old,form.querySelector('button[type="submit"]'))}
 });
-
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
-}
+function escapeHtml(value){return String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#039;');}
